@@ -267,14 +267,31 @@
 
     /* ── Responsive ad container ── */
     .ad-container {
-      max-width: 100%; overflow: hidden;
-      display: flex; justify-content: center; align-items: center;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    .ad-box {
+      width: 728px;
+      height: 90px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     @media (max-width: 768px) {
-      .ad-container { transform: scale(0.44); transform-origin: center; margin: -20px 0; }
+      .ad-box {
+        transform: scale(calc((100vw - 20px) / 728));
+        transform-origin: center center;
+        margin: calc((90px * ((100vw - 20px) / 728) - 90px) / 2) 0;
+      }
     }
-    @media (min-width: 769px) and (max-width: 1024px) {
-      .ad-container { transform: scale(0.85); transform-origin: center; }
+    @media (min-width: 769px) and (max-width: 800px) {
+      .ad-box {
+        transform: scale(0.85);
+        transform-origin: center center;
+      }
     }
 
     /* ── Touch-friendly tap targets (44px min) ── */
@@ -398,12 +415,6 @@
       <div class="absolute w-[600px] h-[300px] bg-red-500/10 rounded-full blur-[120px] top-10 left-1/2 -translate-x-1/2 pointer-events-none animate-glow-pulse"></div>
 
       <div class="max-w-[1340px] mx-auto flex flex-col items-center text-center relative z-10">
-        <!-- Badge -->
-        <div class="animate-slide-up inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs font-semibold uppercase tracking-widest text-red-300 mb-8">
-          <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
-          Free YouTube Downloader — No Limits
-        </div>
-
         <h1 class="font-headline font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-5 tracking-tight animate-slide-up">
           <span class="text-white">Download YouTube</span><br>
           <span class="gradient-text">Videos Instantly</span>
@@ -473,16 +484,18 @@
         <!-- Adsterra Banner 728x90 -->
         <div class="mt-8 md:mt-10 w-full flex justify-center items-center relative z-20">
           <div class="ad-container">
-            <script>
-              atOptions = {
-                'key' : '3b14e020d239061492f68909df7b4966',
-                'format' : 'iframe',
-                'height' : 90,
-                'width' : 728,
-                'params' : {}
-              };
-            </script>
-            <script src="https://www.highrevenueformat.com/3b14e020d239061492f68909df7b4966/invoke.js"></script>
+            <div class="ad-box">
+              <script>
+                atOptions = {
+                  'key' : '3b14e020d239061492f68909df7b4966',
+                  'format' : 'iframe',
+                  'height' : 90,
+                  'width' : 728,
+                  'params' : {}
+                };
+              </script>
+              <script src="https://www.highrevenueformat.com/3b14e020d239061492f68909df7b4966/invoke.js"></script>
+            </div>
           </div>
         </div>
       </div>
