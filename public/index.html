@@ -267,31 +267,19 @@
 
     /* ── Responsive ad container ── */
     .ad-container {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-    }
-    .ad-box {
-      width: 728px;
-      height: 90px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      max-width: 100%; overflow: hidden;
+      display: flex; justify-content: center; align-items: center;
     }
     @media (max-width: 768px) {
-      .ad-box {
-        transform: scale(calc((100vw - 20px) / 728));
-        transform-origin: center center;
-        margin: calc((90px * ((100vw - 20px) / 728) - 90px) / 2) 0;
+      .ad-container { 
+        width: 100%; 
+        overflow-x: auto; 
+        -webkit-overflow-scrolling: touch;
+        justify-content: flex-start;
       }
     }
-    @media (min-width: 769px) and (max-width: 800px) {
-      .ad-box {
-        transform: scale(0.85);
-        transform-origin: center center;
-      }
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .ad-container { transform: scale(0.85); transform-origin: center; }
     }
 
     /* ── Touch-friendly tap targets (44px min) ── */
@@ -415,6 +403,7 @@
       <div class="absolute w-[600px] h-[300px] bg-red-500/10 rounded-full blur-[120px] top-10 left-1/2 -translate-x-1/2 pointer-events-none animate-glow-pulse"></div>
 
       <div class="max-w-[1340px] mx-auto flex flex-col items-center text-center relative z-10">
+
         <h1 class="font-headline font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-5 tracking-tight animate-slide-up">
           <span class="text-white">Download YouTube</span><br>
           <span class="gradient-text">Videos Instantly</span>
@@ -484,18 +473,16 @@
         <!-- Adsterra Banner 728x90 -->
         <div class="mt-8 md:mt-10 w-full flex justify-center items-center relative z-20">
           <div class="ad-container">
-            <div class="ad-box">
-              <script>
-                atOptions = {
-                  'key' : '3b14e020d239061492f68909df7b4966',
-                  'format' : 'iframe',
-                  'height' : 90,
-                  'width' : 728,
-                  'params' : {}
-                };
-              </script>
-              <script src="https://www.highrevenueformat.com/3b14e020d239061492f68909df7b4966/invoke.js"></script>
-            </div>
+            <script>
+              atOptions = {
+                'key' : '3b14e020d239061492f68909df7b4966',
+                'format' : 'iframe',
+                'height' : 90,
+                'width' : 728,
+                'params' : {}
+              };
+            </script>
+            <script src="https://www.highrevenueformat.com/3b14e020d239061492f68909df7b4966/invoke.js"></script>
           </div>
         </div>
       </div>
