@@ -267,19 +267,25 @@
 
     /* ── Responsive ad container ── */
     .ad-container {
-      max-width: 100%; overflow: hidden;
-      display: flex; justify-content: center; align-items: center;
+      width: 300px;
+      margin: 0 auto;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .ad-label {
+      text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+      color: rgba(255,255,255,0.2); margin-bottom: 8px; font-weight: 600;
+      width: 100%;
     }
     @media (max-width: 768px) {
-      .ad-container { 
-        width: 100%; 
-        overflow-x: auto; 
-        -webkit-overflow-scrolling: touch;
-        justify-content: flex-start;
+      .ad-container {
+        width: 300px;
       }
-    }
-    @media (min-width: 769px) and (max-width: 1024px) {
-      .ad-container { transform: scale(0.85); transform-origin: center; }
+      .ad-container iframe, .ad-container ins {
+        width: 300px !important;
+        height: 250px !important;
+        margin: 0 auto !important;
+        display: block !important;
+      }
     }
 
     /* ── Touch-friendly tap targets (44px min) ── */
@@ -470,19 +476,20 @@
         </div>
         <p class="text-white/20 text-xs mt-6">By using our service you accept our <a class="underline hover:text-white/40" href="#">Terms of Service</a>.</p>
 
-        <!-- Adsterra Banner 728x90 -->
+        <!-- Adsterra 300x250 Ad -->
         <div class="mt-8 md:mt-10 w-full flex justify-center items-center relative z-20">
           <div class="ad-container">
+            <span class="ad-label">— Advertisement —</span>
             <script>
               atOptions = {
-                'key' : '3b14e020d239061492f68909df7b4966',
+                'key' : 'c5047c87c169171ee5487413d504b2d2',
                 'format' : 'iframe',
-                'height' : 90,
-                'width' : 728,
+                'height' : 250,
+                'width' : 300,
                 'params' : {}
               };
             </script>
-            <script src="https://www.highrevenueformat.com/3b14e020d239061492f68909df7b4966/invoke.js"></script>
+            <script src="https://www.highrevenueformat.com/c5047c87c169171ee5487413d504b2d2/invoke.js"></script>
           </div>
         </div>
       </div>
@@ -620,14 +627,14 @@
           </div>
           <div class="group glass-card rounded-2xl p-5 opacity-60 cursor-default reveal">
             <div class="flex items-center gap-4">
-              <div class="w-14 h-14 rounded-2xl bg-red-500/5 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined fill text-red-300/50 text-3xl">push_pin</span></div>
+              <img src="/pinterest-logo.jpg" alt="Pinterest" class="w-14 h-14 rounded-full object-cover border border-white/10 flex-shrink-0 bg-white" loading="lazy" decoding="async">
               <div class="flex-1"><h3 class="font-headline font-bold text-sm text-white mb-0.5">Pinterest</h3><p class="text-xs text-white/30">Coming Soon</p></div>
               <span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-white/[0.06] text-white/30">Soon</span>
             </div>
           </div>
           <div class="group glass-card rounded-2xl p-5 opacity-60 cursor-default reveal">
             <div class="flex items-center gap-4">
-              <div class="w-14 h-14 rounded-2xl bg-orange-500/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined fill text-orange-400 text-3xl">forum</span></div>
+              <img src="/reddit-logo.png" alt="Reddit" class="w-14 h-14 rounded-full object-cover border border-white/10 flex-shrink-0 bg-white" loading="lazy" decoding="async">
               <div class="flex-1"><h3 class="font-headline font-bold text-sm text-white mb-0.5">Reddit</h3><p class="text-xs text-white/30">Coming Soon</p></div>
               <span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-white/[0.06] text-white/30">Soon</span>
             </div>
@@ -942,7 +949,5 @@
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
   </script>
 
-  <!-- Popunder Ad -->
-  <script src="https://pl31102137.profitableratecpmnetwork.com/86/ed/57/86ed5764bcee6671f02abaa2fd578112.js"></script>
 </body>
 </html>

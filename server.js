@@ -189,195 +189,125 @@ app.get('/api/info', async (req, res) => {
   }
 });
 
-// ── API: Download Handler — Proxied with Content-Disposition for direct file save ──
+// ── API: Download Handler — Streams directly to client for INSTANT download ──
 
 app.get('/api/download', async (req, res) => {
+  const { url, quality, format: fmt } = req.query;
+
+  if (!url || !isValidYouTubeUrl(url)) {
+    return res.status(400).json({ error: 'Invalid YouTube URL' });
+  }
+
+  const videoId = extractVideoId(url);
+  if (!videoId) {
+    return res.status(400).json({ error: 'Could not extract video ID' });
+  }
+
+  const targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const isAudio = (fmt === 'mp3' || quality?.includes('kbps'));
+  const ext = isAudio ? 'mp3' : 'mp4';
+  const mime = isAudio ? 'audio/mpeg' : 'video/mp4';
+
+  if (!fs.existsSync(YTDLP_PATH)) {
+    return res.status(500).json({ error: 'yt-dlp engine not available.' });
+  }
+
+  // Get video title
+  let videoTitle = 'video';
   try {
-    const { url, quality, format: fmt } = req.query;
+    const { stdout: titleOut } = await execFileAsync(YTDLP_PATH, ['--print', 'title', '--no-playlist', targetUrl], { timeout: 15000 });
+    videoTitle = titleOut.trim() || 'video';
+  } catch (e) {}
 
-    if (!url || !isValidYouTubeUrl(url)) {
-      return res.status(400).json({ error: 'Invalid YouTube URL' });
+  const qualityTag = isAudio ? (quality || 'audio') : (quality || '720p');
+  const safeName = `${videoTitle} [${qualityTag}].${ext}`.replace(/[<>:"/\\|?*]/g, '').trim() || `download.${ext}`;
+  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+  let formatSpec;
+  if (isAudio) {
+    formatSpec = 'bestaudio[ext=m4a]/bestaudio/best';
+  } else {
+    const numHeight = (quality || '720').replace(/[^0-9]/g, '') || '720';
+    formatSpec = `bestvideo[height<=${numHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${numHeight}]/best`;
+  }
+
+  try {
+    // 1. Get stream URLs instantly
+    const { stdout } = await execFileAsync(YTDLP_PATH, [
+      '--force-ipv4',
+      '--user-agent', userAgent,
+      '--js-runtimes', 'node',
+      '-g',
+      '-f', formatSpec,
+      '--no-playlist',
+      targetUrl
+    ]);
+
+    const urls = stdout.trim().split('\n').filter(u => u.startsWith('http'));
+    if (urls.length === 0) {
+      return res.status(500).json({ error: 'No stream URLs extracted.' });
     }
 
-    const videoId = extractVideoId(url);
-    if (!videoId) {
-      return res.status(400).json({ error: 'Could not extract video ID' });
+    // Set download token cookie so the client knows when streaming has started
+    if (req.query.token) {
+      res.cookie('downloadToken', req.query.token, { maxAge: 30000, path: '/' });
     }
 
-    const targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const isAudio = (fmt === 'mp3' || quality?.includes('kbps'));
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    res.setHeader('Content-Type', mime);
 
-    // Helper: proxy a remote URL through our server with attachment headers
-    function proxyDownload(streamUrl, filename, mimeType) {
-      return new Promise((resolve, reject) => {
-        const safeName = filename.replace(/[<>:"/\\|?*]/g, '').trim() || 'download';
-        const mod = streamUrl.startsWith('https') ? require('https') : require('http');
-
-        const options = {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Referer': 'https://www.youtube.com/',
-            'Accept': '*/*'
+    if (urls.length === 1) {
+      // Single stream (audio or pre-merged low quality video) - stream directly via HTTP proxy
+      const streamUrl = urls[0];
+      const mod = streamUrl.startsWith('https') ? require('https') : require('http');
+      
+      const doGet = (getUrl) => {
+        const proxyReq = mod.get(getUrl, { family: 4, headers: { 'User-Agent': userAgent, 'Referer': 'https://www.youtube.com/' } }, (upstream) => {
+          if (upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
+            upstream.resume(); return doGet(upstream.headers.location);
           }
-        };
-
-        function doGet(getUrl) {
-          mod.get(getUrl, options, (upstream) => {
-            // Follow redirects (301, 302, 303, 307, 308)
-            if (upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
-              upstream.resume(); // consume response to free memory
-              doGet(upstream.headers.location);
-              return;
-            }
-
-            if (upstream.statusCode !== 200) {
-              upstream.resume();
-              reject(new Error(`Upstream returned status ${upstream.statusCode}`));
-              return;
-            }
-
-            res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
-            res.setHeader('Content-Type', mimeType);
-            if (upstream.headers['content-length']) {
-              res.setHeader('Content-Length', upstream.headers['content-length']);
-            }
-
-            upstream.pipe(res);
-            upstream.on('end', resolve);
-            upstream.on('error', reject);
-            res.on('close', () => upstream.destroy()); // cleanup if client disconnects
-          }).on('error', (err) => {
-            reject(err);
-          });
-        }
-
-        doGet(streamUrl);
-      });
-    }
-
-    // Get video title for the download filename
-    let videoTitle = 'video';
-    if (fs.existsSync(YTDLP_PATH)) {
-      try {
-        const { stdout: titleOut } = await execFileAsync(YTDLP_PATH, [
-          '--print', 'title',
-          '--no-playlist',
-          targetUrl
-        ]);
-        videoTitle = titleOut.trim() || 'video';
-      } catch (e) {
-        // title fetch failed, use fallback
-      }
-    }
-
-    // 1. Try yt-dlp (100% Free, combined formats with audio)
-    if (fs.existsSync(YTDLP_PATH)) {
-      try {
-        let formatSpec;
-        if (isAudio) {
-          formatSpec = 'bestaudio[ext=m4a]/bestaudio/best';
-        } else {
-          // Use "best" which selects the best COMBINED (video+audio) format
-          const numHeight = (quality || '720').replace(/[^0-9]/g, '') || '720';
-          formatSpec = `best[height<=${numHeight}][ext=mp4]/best[height<=${numHeight}]/best`;
-        }
-
-        const { stdout } = await execFileAsync(YTDLP_PATH, [
-          '-g',
-          '-f', formatSpec,
-          '--no-playlist',
-          targetUrl
-        ]);
-
-        const streamUrl = stdout.trim().split('\n')[0];
-        if (streamUrl && streamUrl.startsWith('http')) {
-          const ext = isAudio ? 'mp3' : 'mp4';
-          const mime = isAudio ? 'audio/mpeg' : 'video/mp4';
-          const qualityTag = isAudio ? (quality || 'audio') : (quality || '720p');
-          const filename = `${videoTitle} [${qualityTag}].${ext}`;
-          return await proxyDownload(streamUrl, filename, mime);
-        }
-      } catch (ytdlpErr) {
-        console.error('yt-dlp download error:', ytdlpErr.message);
-        if (ytdlpErr.stderr) console.error('yt-dlp stderr:', ytdlpErr.stderr);
-      }
-    }
-
-    // 2. Try Cobalt API
-    if (COBALT_API_URL) {
-      try {
-        const cobaltRes = await fetch(COBALT_API_URL, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            url: targetUrl,
-            videoQuality: (quality || '720').replace(/[^0-9]/g, '') || '720',
-            isAudioOnly: isAudio
-          })
+          if (upstream.statusCode !== 200) {
+            upstream.resume();
+            if (!res.headersSent) res.status(500).json({ error: `Upstream error ${upstream.statusCode}` });
+            return;
+          }
+          if (upstream.headers['content-length']) res.setHeader('Content-Length', upstream.headers['content-length']);
+          upstream.pipe(res);
+          req.on('close', () => upstream.destroy());
+        }).on('error', () => {
+          if (!res.headersSent) res.status(500).json({ error: 'Proxy request failed.' });
         });
+      };
+      doGet(streamUrl);
 
-        if (cobaltRes.ok) {
-          const data = await cobaltRes.json();
-          if (data.url) {
-            const ext = isAudio ? 'mp3' : 'mp4';
-            const mime = isAudio ? 'audio/mpeg' : 'video/mp4';
-            const filename = `${videoTitle} [${quality || '720p'}].${ext}`;
-            return await proxyDownload(data.url, filename, mime);
-          }
-        }
-      } catch (cobaltErr) {
-        console.error('Cobalt API notice:', cobaltErr.message);
-      }
+    } else {
+      // Two streams (video + audio) - stream and merge dynamically using ffmpeg
+      const { spawn } = require('child_process');
+      const FFMPEG_PATH = path.join(__dirname, 'bin', 'ffmpeg.exe');
+      
+      const ffmpegArgs = [
+        '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5',
+        '-user_agent', userAgent, '-headers', 'Referer: https://www.youtube.com/\r\n', '-i', urls[0],
+        '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5',
+        '-user_agent', userAgent, '-headers', 'Referer: https://www.youtube.com/\r\n', '-i', urls[1],
+        '-c', 'copy',
+        '-f', ext === 'mp3' ? 'mp3' : 'mp4',
+        '-movflags', 'frag_keyframe+empty_moov',
+        'pipe:1'
+      ];
+      
+      const ffmpeg = spawn(FFMPEG_PATH, ffmpegArgs);
+      ffmpeg.stdout.pipe(res);
+      
+      ffmpeg.on('error', (err) => {
+        console.error('ffmpeg error:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'FFmpeg failed to start.' });
+      });
+      
+      req.on('close', () => ffmpeg.kill('SIGTERM'));
     }
-
-    // 3. Try Apify Token
-    if (APIFY_TOKEN) {
-      try {
-        const actorInput = {
-          startUrls: [{ url: targetUrl }],
-          quality: quality || 'highest',
-          format: fmt || 'mp4',
-          maxResults: 1
-        };
-
-        const apifyRes = await fetch(
-          `https://api.apify.com/v2/acts/bernardo~youtube-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(actorInput)
-          }
-        );
-
-        if (apifyRes.ok) {
-          const items = await apifyRes.json();
-          if (items && items.length > 0 && items[0].formats) {
-            const requestedQuality = quality || '720p';
-            const matchedFormat = items[0].formats.find(f =>
-              f.qualityLabel === requestedQuality && f.url
-            ) || items[0].formats.find(f => f.url && f.hasVideo && f.hasAudio);
-
-            if (matchedFormat && matchedFormat.url) {
-              const ext = isAudio ? 'mp3' : 'mp4';
-              const mime = isAudio ? 'audio/mpeg' : 'video/mp4';
-              const filename = `${videoTitle} [${quality || '720p'}].${ext}`;
-              return await proxyDownload(matchedFormat.url, filename, mime);
-            }
-          }
-        }
-      } catch (apifyErr) {
-        console.error('Apify API notice:', apifyErr.message);
-      }
-    }
-
-    // 4. Fallback — no provider could extract a URL
-    res.status(500).json({ error: 'Download failed. No provider could extract a download link. Please try again.' });
-
-  } catch (error) {
-    console.error('Download error:', error.message);
+  } catch (err) {
+    console.error('Download stream error:', err.message);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Download failed. Please try again.' });
     }

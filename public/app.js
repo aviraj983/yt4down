@@ -225,8 +225,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </span>
           </div>
           <a href="/api/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(f.qualityLabel)}&format=mp4"
-             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-red-600 text-white rounded-xl font-bold text-sm transition-all duration-300 border border-white/10 hover:border-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] group-hover:bg-white/10">
-            <span class="material-symbols-outlined text-[18px]">download</span> Download
+             class="download-btn w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-red-600 text-white rounded-xl font-bold text-sm transition-all duration-300 border border-white/10 hover:border-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] group-hover:bg-white/10">
+            <span class="material-symbols-outlined text-[18px]">download</span> <span>Download</span>
           </a>
         </div>
       `).join('');
@@ -246,8 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
           <a href="/api/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(f.audioBitrate)}&format=mp3"
-             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-purple-600 text-white rounded-xl font-bold text-sm transition-all duration-300 border border-white/10 hover:border-purple-500 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] group-hover:bg-white/10">
-            <span class="material-symbols-outlined text-[18px]">music_note</span> Download
+             class="download-btn w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-purple-600 text-white rounded-xl font-bold text-sm transition-all duration-300 border border-white/10 hover:border-purple-500 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] group-hover:bg-white/10">
+            <span class="material-symbols-outlined text-[18px]">music_note</span> <span>Download</span>
           </a>
         </div>
       `).join('');
@@ -277,6 +277,62 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       setLoading(false);
     }
+  });
+
+  // ── Download Button Loading State (cookie-based detection) ──
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.download-btn');
+    if (!btn) return;
+    if (btn.dataset.loading === "true") {
+      e.preventDefault();
+      return;
+    }
+
+    e.preventDefault(); // We'll trigger download ourselves with a token
+
+    const originalHtml = btn.innerHTML;
+    btn.dataset.loading = "true";
+    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> <span>Processing...</span>';
+    btn.classList.add('opacity-80', 'cursor-not-allowed');
+
+    // Generate unique token & append to download URL
+    const token = 'dl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const downloadUrl = btn.href + '&token=' + encodeURIComponent(token);
+
+    // Create a hidden iframe to trigger the download
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = downloadUrl;
+    document.body.appendChild(iframe);
+
+    // Poll for the cookie that the server sets when streaming begins
+    let attempts = 0;
+    const maxAttempts = 120; // 60 seconds max
+    const pollInterval = setInterval(() => {
+      attempts++;
+      const hasCookie = document.cookie.includes('downloadToken=' + token);
+      if (hasCookie || attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+        // Clear the cookie
+        document.cookie = 'downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        // Show brief success or reset
+        if (hasCookie) {
+          btn.innerHTML = '<span class="material-symbols-outlined text-[18px] text-emerald-400">check_circle</span> <span class="text-emerald-400">Started!</span>';
+          setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.classList.remove('opacity-80', 'cursor-not-allowed');
+            btn.dataset.loading = "false";
+          }, 1500);
+        } else {
+          // Timeout — reset button
+          btn.innerHTML = originalHtml;
+          btn.classList.remove('opacity-80', 'cursor-not-allowed');
+          btn.dataset.loading = "false";
+        }
+        // Clean up iframe
+        setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 5000);
+      }
+    }, 500);
   });
 
   // ── Helpers ──
