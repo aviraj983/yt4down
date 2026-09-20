@@ -12,7 +12,7 @@ try { require('dotenv').config(); } catch (e) {}
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Path to downloaded yt-dlp binary from GitHub
+// Path to downloaded yt-dlp binary (local bin folder)
 const YTDLP_PATH = path.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
 
 // Fallback API Keys & Services
@@ -283,7 +283,12 @@ app.get('/api/download', async (req, res) => {
     } else {
       // Two streams (video + audio) - stream and merge dynamically using ffmpeg
       const { spawn } = require('child_process');
-      const FFMPEG_PATH = path.join(__dirname, 'bin', 'ffmpeg.exe');
+      let FFMPEG_PATH;
+      try {
+        FFMPEG_PATH = require('ffmpeg-static');
+      } catch (e) {
+        FFMPEG_PATH = path.join(__dirname, 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+      }
       
       const ffmpegArgs = [
         '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5',
@@ -318,10 +323,9 @@ app.get('/api/download', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    ytdlpConfigured: fs.existsSync(YTDLP_PATH),
-    cobaltConfigured: !!COBALT_API_URL,
-    apifyConfigured: !!APIFY_TOKEN,
-    rapidApiConfigured: !!RAPIDAPI_KEY,
+    ytdlpAvailable: fs.existsSync(YTDLP_PATH),
+    platform: process.platform,
+    nodeVersion: process.version,
     timestamp: new Date().toISOString()
   });
 });
@@ -342,11 +346,10 @@ app.get(/^(?!\/api).*/, (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n  🚀 YT4DOWN server running at http://localhost:${PORT}`);
-  console.log(`  ⚡ yt-dlp Engine: ${fs.existsSync(YTDLP_PATH) ? 'Active (GitHub Latest Binary) ✅' : 'not found'}`);
-  console.log(`  🌐 Cobalt API: ${COBALT_API_URL ? 'enabled (100% Free) ✅' : 'disabled'}`);
-  console.log(`  📦 Apify token: ${APIFY_TOKEN ? 'configured ✅' : 'not set'}`);
-  console.log(`  🔑 RapidAPI key: ${RAPIDAPI_KEY ? 'configured ✅' : 'not set'}\n`);
+  console.log(`\n  \u{1F680} YT4DOWN server running at http://localhost:${PORT}`);
+  console.log(`  \u26A1 yt-dlp: ${fs.existsSync(YTDLP_PATH) ? 'Available \u2705' : 'Not found (will download on first deploy)'}`);
+  console.log(`  \u{1F3AC} ffmpeg-static: Available \u2705`);
+  console.log(`  \u{1F5A5}\uFE0F  Platform: ${process.platform} | Node ${process.version}\n`);
 });
 
 module.exports = app;
